@@ -43,7 +43,7 @@ jobs:
           echo "SonarQube is ready."
       - name: Configure SonarQube Project and User
         run: |
-          curl -u admin:admin -X POST "http://localhost:9000/api/projects/create" -d "name=aula-hermano" -d "project=aula-hermano"
+          curl -u admin:admin -X POST "http://localhost:9000/api/projects/create" -d "name=my-react-app" -d "project=my-react-app"
           curl -u admin:admin -X POST "http://localhost:9000/api/users/create" -d "login=sonaruser" -d "password=sonarpass" -d "name=Sonar User"
           TOKEN=$(curl -u admin:admin -X POST "http://localhost:9000/api/user_tokens/generate" -d "login=sonaruser" -d "name=token-for-github-actions" | jq -r '.token')
           echo "SONAR_TOKEN=$TOKEN" >> $GITHUB_ENV
@@ -54,21 +54,35 @@ jobs:
           SONAR_HOST_URL: http://sonarqube:9000
       - name: Print and download analysis report
         run: |
-          curl -s -u $SONAR_TOKEN: "http://localhost:9000/api/issues/search?componentKeys=aula-hermano" | tee sonarqube-analysis-report.json | jq
+          curl -s -u $SONAR_TOKEN: "http://localhost:9000/api/issues/search?componentKeys=my-react-app" | tee sonarqube-analysis-report.json | jq
       - name: Upload analysis report
         uses: actions/upload-artifact@v4
         with:
           name: sonarqube-analysis-report
           path: sonarqube-analysis-report.json
 
-  docker-deployment:
+  unit-tests:
     needs: static-code-analysis
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar dependências
+        run: npm install
+      - name: Rodar testes unitários com Jest
+        run: npm test
+
+  docker-deployment:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Construir Docker Image
-        run: docker build -t aula-hermano .
+        run: docker build -t my-react-app .
       - name: Rodar Docker Container
-        run: docker run -d -p 80:80 aula-hermano
+        run: docker run -d -p 80:80 my-react-app
       - name: Checar se o container está rodando
-        run: docker ps | grep aula-hermano
+        run: docker ps | grep my-react-app
